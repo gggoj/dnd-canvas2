@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Холсты кампании</title>
+<style>
+:root{color-scheme:dark;--bg:#1e1e1e;--side:#262626;--bd:#363636;--tx:#dcddde;--mu:#8a8a8a;--ac:#a78bfa;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--tx);font:14px system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box}
+#app{display:flex;height:100%}
+#side{width:240px;background:var(--side);border-right:1px solid var(--bd);display:flex;flex-direction:column;flex-shrink:0}
+#side .top{display:flex;gap:6px;padding:10px}
+button{background:#333;color:var(--tx);border:1px solid #444;border-radius:6px;padding:6px 10px;cursor:pointer;font:inherit}
+button:hover{background:#3f3f3f}
+#list{flex:1;overflow:auto;padding:4px 6px}
+.it{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:5px;cursor:pointer;color:#bbb}
+.it:hover{background:#303030}.it.on{background:#383838;color:#fff}
+.it span.n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.it small{color:var(--mu);font-size:10px}
+.it .x{opacity:0;color:#c66}.it:hover .x{opacity:1}
+#side .foot{padding:10px;display:flex;gap:6px;border-top:1px solid var(--bd)}
+#main{flex:1;position:relative;overflow:hidden;min-width:0}
+#menu{display:none;position:absolute;z-index:5;left:8px;top:8px}
+#vp{position:absolute;inset:0;overflow:hidden;touch-action:none;cursor:grab;background-image:radial-gradient(#2e2e2e 1px,transparent 1px);background-size:24px 24px}
+#world{position:absolute;left:0;top:0;transform-origin:0 0}
+#eg{position:absolute;left:0;top:0;width:1px;height:1px;overflow:visible}
+.node{position:absolute;border:2px solid;border-radius:6px;padding:10px 12px;overflow:hidden;cursor:default;user-select:none}
+.node.sel{box-shadow:0 0 0 3px rgba(167,139,250,.55)}
+.node.conn{box-shadow:0 0 0 3px rgba(255,255,255,.6)}
+.node .t{font-weight:700;line-height:1.2;white-space:pre-wrap;overflow:hidden}
+.node.l .t{font-size:19px}.node.s .t{font-size:12px}
+.node .lk{position:absolute;left:12px;bottom:6px;font-size:11px;color:var(--ac);text-decoration:underline;cursor:pointer}
+.lab{position:absolute;pointer-events:none;color:#777;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#bar{position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;gap:6px;align-items:center;background:#2a2a2a;border:1px solid #444;border-radius:10px;padding:6px 8px;max-width:96%;flex-wrap:wrap;justify-content:center}
+.dot{width:20px;height:20px;border-radius:50%;border:2px solid;cursor:pointer;padding:0}
+#hint{position:absolute;right:12px;top:10px;color:#666;font-size:12px;text-align:right;pointer-events:none}
+#dlg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:10}
+#dlg .box{background:#2a2a2a;border:1px solid #444;border-radius:10px;padding:16px;width:min(420px,92vw);display:flex;flex-direction:column;gap:8px}
+input,textarea,select{background:#1b1b1b;color:var(--tx);border:1px solid #444;border-radius:6px;padding:7px;font:inherit;width:100%}
+label{font-size:12px;color:var(--mu)}
+.note{max-width:760px;margin:0 auto;padding:40px 24px 80px;height:100%;overflow:auto}
+.note #nt{font-size:28px;font-weight:700;background:none;border:none;padding:0 0 10px}
+.note textarea{min-height:55vh;resize:vertical}
+#prev{line-height:1.6;min-height:30vh}
+#prev a{color:var(--ac);cursor:pointer;text-decoration:underline}#prev a.miss{color:#d77}
+#prev h2,#prev h3{margin:14px 0 6px}
+.back{margin-top:30px;border-top:1px solid var(--bd);padding-top:10px;color:var(--mu);font-size:13px}
+.back a{color:var(--ac);cursor:pointer;margin-right:10px}
+@media(max-width:700px){#side{position:absolute;z-index:6;height:100%;transform:translateX(-100%);transition:.2s}#side.open{transform:none}#menu{display:block}#hint{display:none}.note{padding-top:56px}}
+</style></head><body>
+<div id="app">
+<div id="side">
+ <div class="top"><button id="nc" title="Новый холст">+ Холст</button><button id="nn">+ Заметка</button></div>
+ <div id="list"></div>
+ <div class="foot"><button id="ex">Экспорт</button><button id="im">Импорт</button><input id="fi" type="file" accept=".json" hidden></div>
+</div>
+<div id="main"><button id="menu">☰</button><div id="content" style="position:absolute;inset:0"></div></div>
+</div>
+<div id="dlg"><div class="box" id="dbox"></div></div>
+<script>
+const $=s=>document.querySelector(s),uid=()=>Math.random().toString(36).slice(2,9);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const COL={none:['#666','#222'],yellow:['#a8a436','#2b2a18'],green:['#2f8a56','#16281e'],purple:['#6d42d8','#1f1538'],teal:['#2aa198','#12292b'],red:['#b94444','#2d1717']};
+let S=null;try{S=JSON.parse(localStorage.getItem('dndcanvas'))}catch(e){}
+if(!S||!S.items)S=seed();
+function seed(){const a=uid();return{active:a,items:[
+{id:a,type:'canvas',name:'Главная',view:{x:60,y:60,k:1},nodes:[
+{id:'n1',x:300,y:40,w:240,h:90,color:'purple',label:'Начало кампейна',text:'Начало кампейна',note:'',size:'l'},
+{id:'n2',x:80,y:220,w:280,h:110,color:'teal',label:'Непонятное письмо',text:'Непонятное письмо, что привело нас в город',note:'Письмо',size:'l'},
+{id:'n3',x:480,y:240,w:220,h:90,color:'red',label:'Найти информацию',text:'Найти информацию про Чёрных Воронов',note:'',size:'l'}],
+edges:[{from:'n1',to:'n2'},{from:'n1',to:'n3'}]},
+{id:uid(),type:'note',name:'Письмо',content:'# Письмо\nСюда пиши всё, что известно. Ссылайся на другие заметки так: [[Чёрные Вороны]]'}]}}
+function save(){try{localStorage.setItem('dndcanvas',JSON.stringify(S))}catch(e){}}
+const byId=id=>S.items.find(i=>i.id===id),byName=n=>S.items.find(i=>i.type==='note'&&i.name===n);
+function getNote(n,mk){let x=byName(n);if(!x&&mk){x={id:uid(),type:'note',name:n,content:''};S.items.push(x);save()}return x}
+function open(id){S.active=id;save();render();$('#side').classList.remove('open')}
+function render(){
+ $('#list').innerHTML=S.items.map(i=>`<div class="it ${i.id===S.active?'on':''}" data-id="${i.id}"><small>${i.type==='canvas'?'▦':'▤'}</small><span class="n">${esc(i.name)}</span><span class="x" data-del="${i.id}">✕</span></div>`).join('');
+ const c=byId(S.active)||S.items[0];if(!c){$('#content').innerHTML='<p style="padding:60px;color:#777">Создай холст или заметку слева</p>';return}
+ c.type==='canvas'?drawCanvas(c):drawNote(c)}
+$('#list').onclick=e=>{const d=e.target.dataset.del;if(d){const i=byId(d);if(confirm('Удалить «'+i.name+'»?')){S.items=S.items.filter(x=>x.id!==d);S.active=S.items[0]?.id;save();render()}return}const it=e.target.closest('.it');if(it)open(it.dataset.id)};
+$('#nc').onclick=()=>{const n=prompt('Название холста');if(!n)return;const c={id:uid(),type:'canvas',name:n,view:{x:60,y:60,k:1},nodes:[],edges:[]};S.items.push(c);open(c.id)};
+$('#nn').onclick=()=>{const n=prompt('Название заметки');if(!n)return;open(getNote(n,1).id)};
+$('#menu').onclick=()=>$('#side').classList.toggle('open');
+$('#ex').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:'application/json'}));a.download='dnd-canvas.json';a.click()};
+$('#im').onclick=()=>$('#fi').click();
+$('#fi').onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);if(!d.items)throw 0;S=d;save();render()}catch(x){alert('Не тот файл')}})};
+
+/* ---------- CANVAS ---------- */
+function drawCanvas(c){
+ let sel=null,conn=null;const v=c.view;
+ $('#content').innerHTML=`<div id="vp"><div id="world"><svg id="eg"><defs><marker id="ar" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,1L10,6L0,11z" fill="#999"/></marker></defs><g id="eg2"></g></svg></div></div><div id="bar"></div><div id="hint">Двойной клик по фону — новая карточка<br>Колесо — масштаб · тащи фон — двигать</div>`;
+ const vp=$('#vp'),world=$('#world'),eg=$('#eg2'),bar=$('#bar');
+ const view=()=>world.style.transform=`translate(${v.x}px,${v.y}px) scale(${v.k})`;
+ const N=id=>c.nodes.find(n=>n.id===id);
+ function pt(n,s){return s==='r'?[n.x+n.w,n.y+n.h/2]:s==='l'?[n.x,n.y+n.h/2]:s==='b'?[n.x+n.w/2,n.y+n.h]:[n.x+n.w/2,n.y]}
+ const V={r:[1,0],l:[-1,0],b:[0,1],t:[0,-1]};
+ function edges(){eg.innerHTML=c.edges.map((e,i)=>{const a=N(e.from),b=N(e.to);if(!a||!b)return'';
+  const dx=(b.x+b.w/2)-(a.x+a.w/2),dy=(b.y+b.h/2)-(a.y+a.h/2);let sa,sb;
+  if(Math.abs(dx)*(a.h+b.h)>Math.abs(dy)*(a.w+b.w)){[sa,sb]=dx>0?['r','l']:['l','r']}else{[sa,sb]=dy>0?['b','t']:['t','b']}
+  const p=pt(a,sa),q=pt(b,sb),d=Math.max(40,Math.hypot(q[0]-p[0],q[1]-p[1])/3);
+  const D=`M${p[0]},${p[1]} C${p[0]+V[sa][0]*d},${p[1]+V[sa][1]*d} ${q[0]+V[sb][0]*d},${q[1]+V[sb][1]*d} ${q[0]},${q[1]}`;
+  return`<path d="${D}" fill="none" stroke="#999" stroke-width="2" marker-end="url(#ar)"/><path d="${D}" fill="none" stroke="transparent" stroke-width="16" style="cursor:pointer;pointer-events:stroke" data-e="${i}"/>`}).join('')}
+ function place(el,n){el.style.cssText=`left:${n.x}px;top:${n.y}px;width:${n.w}px;height:${n.h}px;border-color:${COL[n.color][0]};background:${COL[n.color][1]}`}
+ function nodes(){world.querySelectorAll('.node,.lab').forEach(x=>x.remove());
+  c.nodes.forEach(n=>{const el=document.createElement('div');el.className='node '+n.size+(n.id===sel?' sel':'')+(n.id===conn?' conn':'');el.dataset.id=n.id;
+   el.innerHTML=`<div class="t">${esc(n.text)}</div>${n.note?`<a class="lk" data-note="${esc(n.note)}">${esc(n.note)}</a>`:''}`;place(el,n);world.appendChild(el);
+   if(n.label){const l=document.createElement('div');l.className='lab';l.dataset.for=n.id;l.textContent=n.label;l.style.cssText=`left:${n.x}px;top:${n.y-18}px;width:${n.w}px`;world.appendChild(l)}});
+  edges();toolbar()}
+ function toolbar(){const n=N(sel);
+  bar.innerHTML=`<button data-a="add">+ Карточка</button>`+(n?`<span>`+Object.keys(COL).map(k=>`<button class="dot" data-col="${k}" style="border-color:${COL[k][0]};background:${COL[k][1]}"></button>`).join('')+`</span><button data-a="edit">✎ Изменить</button><button data-a="conn">${conn?'Выбери цель…':'→ Связать'}</button><button data-a="del">🗑</button>`:'')}
+ bar.onclick=e=>{const b=e.target.closest('button');if(!b)return;const n=N(sel);
+  if(b.dataset.col&&n){n.color=b.dataset.col;save();nodes()}
+  else if(b.dataset.a==='add'){const r=vp.getBoundingClientRect();const x=(r.width/2-v.x)/v.k-120,y=(r.height/2-v.y)/v.k-45;newNode(x,y)}
+  else if(b.dataset.a==='edit'&&n)edit(n);
+  else if(b.dataset.a==='conn'&&n){conn=conn?null:n.id;nodes()}
+  else if(b.dataset.a==='del'&&n){c.nodes=c.nodes.filter(x=>x!==n);c.edges=c.edges.filter(x=>x.from!==n.id&&x.to!==n.id);sel=conn=null;save();nodes()}};
+ function newNode(x,y){const n={id:uid(),x:Math.round(x),y:Math.round(y),w:240,h:90,color:'none',label:'',text:'Новая карточка',note:'',size:'l'};c.nodes.push(n);sel=n.id;save();nodes();edit(n)}
+ function edit(n){const names=S.items.filter(i=>i.type==='note').map(i=>`<option value="${esc(i.name)}">`).join('');
+  const d=$('#dbox');d.innerHTML=`<label>Подпись над карточкой</label><input id="f1" value="${esc(n.label)}"><label>Текст</label><textarea id="f2" rows="3">${esc(n.text)}</textarea><label>Ссылка на заметку (создастся, если её нет)</label><input id="f3" list="dl" value="${esc(n.note)}"><datalist id="dl">${names}</datalist><div style="display:flex;gap:8px"><div style="flex:1"><label>Размер текста</label><select id="f4"><option value="l">Крупный</option><option value="s">Мелкий</option></select></div><div style="flex:1"><label>Ширина × высота</label><div style="display:flex;gap:4px"><input id="f5" type="number" value="${n.w}"><input id="f6" type="number" value="${n.h}"></div></div></div><div style="display:flex;gap:8px;justify-content:flex-end"><button id="c">Отмена</button><button id="s" style="background:#5b3fc4">Сохранить</button></div>`;
+  $('#f4').value=n.size;$('#dlg').style.display='flex';$('#f2').focus();
+  $('#c').onclick=()=>$('#dlg').style.display='none';
+  $('#s').onclick=()=>{n.label=$('#f1').value;n.text=$('#f2').value;n.note=$('#f3').value.trim();n.size=$('#f4').value;n.w=Math.max(80,+$('#f5').value||n.w);n.h=Math.max(40,+$('#f6').value||n.h);if(n.note)getNote(n.note,1);save();$('#dlg').style.display='none';nodes();renderList()}}
+ function renderList(){$('#list').innerHTML=S.items.map(i=>`<div class="it ${i.id===S.active?'on':''}" data-id="${i.id}"><small>${i.type==='canvas'?'▦':'▤'}</small><span class="n">${esc(i.name)}</span><span class="x" data-del="${i.id}">✕</span></div>`).join('')}
+ let drag=null;
+ vp.onpointerdown=e=>{if(e.target.closest('a.lk')||e.target.closest('#bar'))return;vp.setPointerCapture(e.pointerId);
+  const nd=e.target.closest('.node');
+  if(nd){const n=N(nd.dataset.id);
+   if(conn&&conn!==n.id){c.edges.push({from:conn,to:n.id});conn=null;sel=n.id;save();nodes();return}
+   sel=n.id;nodes();drag={n,sx:e.clientX,sy:e.clientY,ox:n.x,oy:n.y,el:world.querySelector(`.node[data-id="${n.id}"]`),mv:0}}
+  else{if(conn){conn=null}sel=null;nodes();drag={pan:1,sx:e.clientX,sy:e.clientY,ox:v.x,oy:v.y}}};
+ vp.onpointermove=e=>{if(!drag)return;const dx=e.clientX-drag.sx,dy=e.clientY-drag.sy;
+  if(drag.pan){v.x=drag.ox+dx;v.y=drag.oy+dy;view()}
+  else{drag.n.x=Math.round(drag.ox+dx/v.k);drag.n.y=Math.round(drag.oy+dy/v.k);place(drag.el,drag.n);const l=world.querySelector(`.lab[data-for="${drag.n.id}"]`);if(l){l.style.left=drag.n.x+'px';l.style.top=drag.n.y-18+'px'}edges()}};
+ vp.onpointerup=()=>{if(drag)save();drag=null};
+ vp.onwheel=e=>{e.preventDefault();const r=vp.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top,k=Math.min(2.5,Math.max(.25,v.k*(e.deltaY<0?1.1:.9)));v.x=mx-(mx-v.x)*k/v.k;v.y=my-(my-v.y)*k/v.k;v.k=k;view();save()};
+ vp.ondblclick=e=>{const nd=e.target.closest('.node');if(nd&&!e.target.closest('a.lk'))return edit(N(nd.dataset.id));if(e.target.closest('#bar'))return;const r=vp.getBoundingClientRect();newNode((e.clientX-r.left-v.x)/v.k-120,(e.clientY-r.top-v.y)/v.k-45)};
+ vp.onclick=e=>{const a=e.target.closest('a.lk');if(a)open(getNote(a.dataset.note,1).id);const p=e.target.closest('[data-e]');if(p&&confirm('Удалить стрелку?')){c.edges.splice(+p.dataset.e,1);save();edges()}};
+ view();nodes()}
+
+/* ---------- NOTES ---------- */
+function drawNote(n){
+ $('#content').innerHTML=`<div class="note"><input id="nt" value="${esc(n.name)}"><div style="display:flex;gap:6px;margin-bottom:10px"><button id="b1">Редактор</button><button id="b2">Просмотр</button></div><textarea id="ta" placeholder="Пиши заметку. Ссылки на другие: [[Название]]. Заголовки: # Заголовок"></textarea><div id="prev"></div><div class="back" id="bk"></div></div>`;
+ const ta=$('#ta'),pv=$('#prev');ta.value=n.content;
+ const md=t=>esc(t).split('\n').map(l=>l.startsWith('## ')?`<h3>${l.slice(3)}</h3>`:l.startsWith('# ')?`<h2>${l.slice(2)}</h2>`:l.startsWith('- ')?'• '+l.slice(2)+'<br>':l+'<br>').join('').replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\[\[(.+?)\]\]/g,(m,x)=>`<a data-n="${x}" class="${byName(x.replace(/&amp;/g,'&'))?'':'miss'}">${x}</a>`);
+ function mode(ed){ta.style.display=ed?'block':'none';pv.style.display=ed?'none':'block';if(!ed)pv.innerHTML=md(ta.value)||'<span style="color:#777">Пусто</span>'}
+ mode(!n.content);$('#b1').onclick=()=>mode(1);$('#b2').onclick=()=>mode(0);
+ ta.oninput=()=>{n.content=ta.value;save();backs()};
+ pv.onclick=e=>{const a=e.target.closest('a[data-n]');if(a)open(getNote(a.dataset.n.replace(/&amp;/g,'&'),1).id)};
+ $('#nt').onchange=e=>{const nv=e.target.value.trim();if(!nv||byName(nv)){e.target.value=n.name;return}const old=n.name;
+  S.items.forEach(i=>{if(i.type==='canvas')i.nodes.forEach(x=>{if(x.note===old)x.note=nv});else i.content=i.content.split('[['+old+']]').join('[['+nv+']]')});n.name=nv;save();render()};
+ function backs(){const r=[];S.items.forEach(i=>{if(i===n)return;if(i.type==='canvas'?i.nodes.some(x=>x.note===n.name):i.content.includes('[['+n.name+']]'))r.push(i)});
+  $('#bk').innerHTML=r.length?'Упоминается: '+r.map(i=>`<a data-id="${i.id}">${esc(i.name)}</a>`).join(''):'Обратных ссылок: 0'}
+ $('#bk').onclick=e=>{const a=e.target.closest('a[data-id]');if(a)open(a.dataset.id)};
+ backs()}
+render();
+</script></body></html>
